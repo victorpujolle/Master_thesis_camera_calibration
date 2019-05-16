@@ -5,7 +5,7 @@ from DXSerialAPI import *
 from Arm import *
 
 from PyQt5 import QtWidgets,QtCore
-from robot_IK_interface import robot_IK_interface
+from robot_cam_interface import robot_cam_interface
 
 
 if __name__ == '__main__':
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     # UI
     #ArmAPI.initialize_position()
     QApp = QtWidgets.QApplication(sys.argv)
-    app = robot_IK_interface(ArmAPI)
+    app = robot_cam_interface(ArmAPI)
     app.show()
     sys.exit(QApp.exec_())
 

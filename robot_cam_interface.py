@@ -1,30 +1,41 @@
+# interface lib
+#from PySide2.QtGui import QPixmap, QImage
+#from PySide2.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget, QFileDialog, QTextEdit, QSizePolicy, QMessageBox, QHBoxLayout
+#from PySide2.QtCore import Slot, Qt, QStringListModel, QSize, QTimer
+
+from PyQt5 import QtGui, QtWidgets, QtCore
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt, QStringListModel, QSize, QTimer
+
+# scientific and image lib
+import pyrealsense2 as rs
+import numpy as np
+import cv2
+
+# basic lib
 import sys
 import os
-
-import numpy as np
-
-from mpl_toolkits.mplot3d import Axes3D
-from PyQt5 import QtWidgets, QtCore
-
-
-
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-
-from Arm import Arm
-
-from utils import *
-
 import glob
 import socket
 import math
 import time
 
+# plotting lib
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from mpl_toolkits.mplot3d import Axes3D
+
+# my lib
+from Arm import Arm
+from utils import *
 
 
 
-class robot_IK_interface(QtWidgets.QWidget):
+
+
+class robot_cam_interface(QMainWindow):
     """
     The goal of this interface is the simulation of the IK
     Element of this interface will be incorporate later in an other interface for robot control
@@ -34,7 +45,7 @@ class robot_IK_interface(QtWidgets.QWidget):
     def __init__(self, arm):
 
         # super init
-        super(robot_IK_interface, self).__init__()
+        super(robot_cam_interface, self).__init__()
 
         # link to the arm
         self.arm = arm
@@ -47,6 +58,9 @@ class robot_IK_interface(QtWidgets.QWidget):
 
         # init menu
         self.init_menu()
+
+        # init video pipeline
+        self.init_pipeline()
 
         # init robot position
         self.arm.initialize_position()
@@ -74,9 +88,13 @@ class robot_IK_interface(QtWidgets.QWidget):
         self.FigureLayout.setContentsMargins(0, 0, 0, 0)
         self.MenuLayout.setContentsMargins(0, 0, 0, 0)
 
+        # set title
+        self.title = 'Robot interface'
+        self.setWindowTitle(self.title)
+
         # set Geometry
-        self.setGeometry(0, 0, 800, 600)
-        self.FigureWidget.setGeometry(400, 0, 700, 600)
+        self.setGeometry(0, 0, 1500, 600)
+        self.FigureWidget.setGeometry(400, 0, 400, 400)
         self.MenuWidget.setGeometry(0, 0, 300, 600)
 
         return 0
@@ -111,56 +129,85 @@ class robot_IK_interface(QtWidgets.QWidget):
 
         return 0
 
+    def init_pipeline(self):
+        """
+        init of the video pipeline
+        """
+        # Create a timer.
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.nextFrameSlot)
+
     def init_menu(self):
         """
         Initialisation of the menu
         """
+        # menu bars
+        menubar = self.menuBar()
+        menu_camera = menubar.addMenu('Camera')   
+
+
+        action_open_cam = QAction('Open Camera', self)
+        action_open_cam.setStatusTip('Open Camera')
+        action_open_cam.triggered.connect(self.openCamera)
+        menu_camera.addAction(action_open_cam)
+
+        action_stop_cam = QAction('Stop Camera', self)
+        action_stop_cam.setStatusTip('Stop Camera')
+        action_stop_cam.triggered.connect(self.stopCamera)
+        menu_camera.addAction(action_stop_cam)
+
+
+        # windows
+        # central widget
+        centralwidget = QWidget(self)
+        self.setCentralWidget(centralwidget)
+
         # create label
-        self.label_goal= QtWidgets.QLabel(self)
-        self.label_result_X = QtWidgets.QLabel(self)
+        self.label_goal = QtWidgets.QLabel(centralwidget)
+        self.label_result_X = QtWidgets.QLabel(centralwidget)
 
-        self.label_X  = QtWidgets.QLabel(self)
-        self.label_Y  = QtWidgets.QLabel(self)
-        self.label_Z  = QtWidgets.QLabel(self)
-        self.label_aX = QtWidgets.QLabel(self)
-        self.label_aY = QtWidgets.QLabel(self)
-        self.label_aZ = QtWidgets.QLabel(self)
+        self.label_X  = QtWidgets.QLabel(centralwidget)
+        self.label_Y  = QtWidgets.QLabel(centralwidget)
+        self.label_Z  = QtWidgets.QLabel(centralwidget)
+        self.label_aX = QtWidgets.QLabel(centralwidget)
+        self.label_aY = QtWidgets.QLabel(centralwidget)
+        self.label_aZ = QtWidgets.QLabel(centralwidget)
 
-        self.label_q0 = QtWidgets.QLabel(self)
-        self.label_q1 = QtWidgets.QLabel(self)
-        self.label_q2 = QtWidgets.QLabel(self)
-        self.label_q3 = QtWidgets.QLabel(self)
-        self.label_q4 = QtWidgets.QLabel(self)
-        self.label_q5 = QtWidgets.QLabel(self)
+        self.label_q0 = QtWidgets.QLabel(centralwidget)
+        self.label_q1 = QtWidgets.QLabel(centralwidget)
+        self.label_q2 = QtWidgets.QLabel(centralwidget)
+        self.label_q3 = QtWidgets.QLabel(centralwidget)
+        self.label_q4 = QtWidgets.QLabel(centralwidget)
+        self.label_q5 = QtWidgets.QLabel(centralwidget)
 
         # create textbox
-        self.textbox_input_X  = QtWidgets.QLineEdit(self)
-        self.textbox_input_Y  = QtWidgets.QLineEdit(self)
-        self.textbox_input_Z  = QtWidgets.QLineEdit(self)
-        self.textbox_input_aX = QtWidgets.QLineEdit(self)
-        self.textbox_input_aY = QtWidgets.QLineEdit(self)
-        self.textbox_input_aZ = QtWidgets.QLineEdit(self)
+        self.textbox_input_X  = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_input_Y  = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_input_Z  = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_input_aX = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_input_aY = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_input_aZ = QtWidgets.QLineEdit(centralwidget)
 
-        self.textbox_output_X = QtWidgets.QLineEdit(self)
-        self.textbox_output_Y = QtWidgets.QLineEdit(self)
-        self.textbox_output_Z = QtWidgets.QLineEdit(self)
-        self.textbox_output_aX = QtWidgets.QLineEdit(self)
-        self.textbox_output_aY = QtWidgets.QLineEdit(self)
-        self.textbox_output_aZ = QtWidgets.QLineEdit(self)
+        self.textbox_output_X = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_output_Y = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_output_Z = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_output_aX = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_output_aY = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_output_aZ = QtWidgets.QLineEdit(centralwidget)
 
-        self.textbox_q0 = QtWidgets.QLineEdit(self)
-        self.textbox_q1 = QtWidgets.QLineEdit(self)
-        self.textbox_q2 = QtWidgets.QLineEdit(self)
-        self.textbox_q3 = QtWidgets.QLineEdit(self)
-        self.textbox_q4 = QtWidgets.QLineEdit(self)
-        self.textbox_q5 = QtWidgets.QLineEdit(self)
+        self.textbox_q0 = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_q1 = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_q2 = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_q3 = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_q4 = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_q5 = QtWidgets.QLineEdit(centralwidget)
 
         # create button
-        self.button_calculate = QtWidgets.QPushButton('calculate', self)
-        self.button_draw_goal = QtWidgets.QPushButton('draw goal', self)
-        self.button_draw = QtWidgets.QPushButton('draw', self)
-        self.button_clear = QtWidgets.QPushButton('clear', self)
-        self.button_move = QtWidgets.QPushButton('move', self)
+        self.button_calculate = QtWidgets.QPushButton('calculate', centralwidget)
+        self.button_draw_goal = QtWidgets.QPushButton('draw goal', centralwidget)
+        self.button_draw = QtWidgets.QPushButton('draw', centralwidget)
+        self.button_clear = QtWidgets.QPushButton('clear', centralwidget)
+        self.button_move = QtWidgets.QPushButton('move', centralwidget)
 
         # resize button and textbox
         self.textbox_input_X.resize(100,20)
@@ -191,8 +238,6 @@ class robot_IK_interface(QtWidgets.QWidget):
         self.button_move.resize(100, 30)
 
         # set text of lables)
-        self.label_goal.setText('GOAL')
-        self.label_result_X.setText('RESULT')
 
         self.label_X.setText('X :')
         self.label_Y.setText('Y :')
@@ -210,29 +255,26 @@ class robot_IK_interface(QtWidgets.QWidget):
 
         # set location of everythink
 
-        self.label_goal.move(15 + 35, 10)
-        self.label_result_X.move(215, 10)
-
-        self.label_X.move(15, 30)
-        self.label_Y.move(15, 30 + 30)
-        self.label_Z.move(15, 30 + 2 * 30)
+        self.label_X.move( 15, 30)
+        self.label_Y.move( 15, 30 + 30)
+        self.label_Z.move( 15, 30 + 2 * 30)
         self.label_aX.move(15, 30 + 3 * 30)
         self.label_aY.move(15, 30 + 4 * 30)
         self.label_aZ.move(15, 30 + 5 * 30)
 
-        self.textbox_input_X.move(15 + 35, 30)
-        self.textbox_input_Y.move(15 + 35, 30 + 30)
-        self.textbox_input_Z.move(15 + 35, 30 + 2 * 30)
-        self.textbox_input_aX.move(15 + 35, 30 + 3 * 30)
-        self.textbox_input_aY.move(15 + 35, 30 + 4 * 30)
-        self.textbox_input_aZ.move(15 + 35, 30 + 5 * 30)
+        self.textbox_input_X.move( 15 + 35, 35)
+        self.textbox_input_Y.move( 15 + 35, 35 + 30)
+        self.textbox_input_Z.move( 15 + 35, 35 + 2 * 30)
+        self.textbox_input_aX.move(15 + 35, 35 + 3 * 30)
+        self.textbox_input_aY.move(15 + 35, 35 + 4 * 30)
+        self.textbox_input_aZ.move(15 + 35, 35 + 5 * 30)
 
-        self.textbox_output_X.move( 215, 30)
-        self.textbox_output_Y.move( 215, 30 + 30)
-        self.textbox_output_Z.move( 215, 30 + 2 * 30)
-        self.textbox_output_aX.move(215, 30 + 3 * 30)
-        self.textbox_output_aY.move(215, 30 + 4 * 30)
-        self.textbox_output_aZ.move(215, 30 + 5 * 30)
+        self.textbox_output_X.move( 215, 35)
+        self.textbox_output_Y.move( 215, 35 + 30)
+        self.textbox_output_Z.move( 215, 35 + 2 * 30)
+        self.textbox_output_aX.move(215, 35 + 3 * 30)
+        self.textbox_output_aY.move(215, 35 + 4 * 30)
+        self.textbox_output_aZ.move(215, 35 + 5 * 30)
 
         self.label_q0.move(15, 10*30)
         self.label_q1.move(15, 10*30 + 30)
@@ -241,12 +283,12 @@ class robot_IK_interface(QtWidgets.QWidget):
         self.label_q4.move(15, 10*30 + 4 * 30)
         self.label_q5.move(15, 10*30 + 5 * 30)
 
-        self.textbox_q0.move(15 + 35, 10*30)
-        self.textbox_q1.move(15 + 35, 10*30 + 30)
-        self.textbox_q2.move(15 + 35, 10*30 + 2 * 30)
-        self.textbox_q3.move(15 + 35, 10*30 + 3 * 30)
-        self.textbox_q4.move(15 + 35, 10*30 + 4 * 30)
-        self.textbox_q5.move(15 + 35, 10*30 + 5 * 30)
+        self.textbox_q0.move(15 + 35, 5 + 10*30)
+        self.textbox_q1.move(15 + 35, 5 + 10*30 + 30)
+        self.textbox_q2.move(15 + 35, 5 + 10*30 + 2 * 30)
+        self.textbox_q3.move(15 + 35, 5 + 10*30 + 3 * 30)
+        self.textbox_q4.move(15 + 35, 5 + 10*30 + 4 * 30)
+        self.textbox_q5.move(15 + 35, 5 + 10*30 + 5 * 30)
 
         self.button_calculate.move(15+35, 250)
         self.button_draw_goal.move(15+35, 220)
@@ -382,6 +424,47 @@ class robot_IK_interface(QtWidgets.QWidget):
         self.arm.set_arm_position(angles)
         self.arm.activate_all_reg()
         return 0
+
+
+    # -----MENU ACTION-----
+
+    def openCamera(self):
+        # Configure depth and color streams
+        self.pipeline = rs.pipeline()
+        config = rs.config()
+        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
+        # Start streaming
+        self.pipeline.start(config)
+
+        self.timer.start(1000./24)
+
+    def stopCamera(self):
+        self.timer.stop()
+
+    def nextFrameSlot(self):
+
+        # Wait for a coherent pair of frames: depth and color
+        frames = self.pipeline.wait_for_frames()
+        depth_frame = frames.get_depth_frame()
+        color_frame = frames.get_color_frame()
+
+        # Convert images to numpy arrays
+        depth_image = np.asanyarray(depth_frame.get_data())
+        color_image = np.asanyarray(color_frame.get_data())
+
+        # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
+        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+
+        # Stack both images horizontally
+        images = np.hstack((color_image, depth_colormap))
+
+        #rval, frame = self.vc.read()
+        frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
+        image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(image)
+        self.label.setPixmap(pixmap)
 
 
     # -----GETTER AND SETTER-----

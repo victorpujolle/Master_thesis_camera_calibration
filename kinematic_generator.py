@@ -456,7 +456,7 @@ class IK_Generator(FK_Generator):
         options2 = {'eps': 1e-08, 'scale': None, 'offset': None, 'mesg_num': None, 'maxCGit': -1, 'maxiter': None,
                    'eta': -1, 'stepmx': 0, 'accuracy': 0, 'minfev': 0, 'ftol': -1, 'xtol': -1, 'gtol': -1,
                    'rescale': -1, 'disp': False}
-        print('hello there')
+
         res0 = scipy.optimize.minimize(loss_distance, q_in, method='TNC', jac='2-point' , bounds=bounds, options=options1)
         x0 = res0['x']
         res = scipy.optimize.minimize(loss_direction, x0, method='TNC', jac='2-point' , bounds=bounds, options=options2)
