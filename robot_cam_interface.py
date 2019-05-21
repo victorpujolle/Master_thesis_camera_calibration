@@ -4,8 +4,8 @@
 #from PySide2.QtCore import Slot, Qt, QStringListModel, QSize, QTimer
 
 from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu
-from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu, QLabel
+from PyQt5.QtGui import QIcon, QPixmap, QImage
 from PyQt5.QtCore import Qt, QStringListModel, QSize, QTimer
 
 # scientific and image lib
@@ -69,6 +69,8 @@ class robot_cam_interface(QMainWindow):
         # init randomness for the sake of reproductability
         np.random.seed(19680801)
 
+
+
     # ------INIT FUNCTIONS-----
 
     def init_UI(self):
@@ -76,26 +78,33 @@ class robot_cam_interface(QMainWindow):
         initialisation of the UI windows
         """
         self._count = True
-        # Create Widget for Figure/Menu
+        # Create Widget for Figure/Menu/Image
         self.FigureWidget = QtWidgets.QWidget(self)
         self.MenuWidget = QtWidgets.QWidget(self)
+        self.ImageWidget = QtWidgets.QWidget(self)
+
+
 
         # Add Layout to each Widget
         self.FigureLayout = QtWidgets.QVBoxLayout(self.FigureWidget)
         self.MenuLayout = QtWidgets.QVBoxLayout(self.MenuWidget)
+        self.ImageLayout = QtWidgets.QVBoxLayout(self.ImageWidget)
 
         # Delete Margin of the layout
         self.FigureLayout.setContentsMargins(0, 0, 0, 0)
         self.MenuLayout.setContentsMargins(0, 0, 0, 0)
+        self.ImageLayout.setContentsMargins(0, 0, 0, 0)
 
         # set title
         self.title = 'Robot interface'
         self.setWindowTitle(self.title)
 
+
         # set Geometry
         self.setGeometry(0, 0, 1500, 600)
         self.FigureWidget.setGeometry(400, 0, 400, 400)
-        self.MenuWidget.setGeometry(0, 0, 300, 600)
+        self.MenuWidget.setGeometry(0, 0, 400, 600)
+        self.ImageWidget.setGeometry(1000,0,256,256)
 
         return 0
 
@@ -137,6 +146,9 @@ class robot_cam_interface(QMainWindow):
         self.timer = QTimer()
         self.timer.timeout.connect(self.nextFrameSlot)
 
+
+        return 0
+
     def init_menu(self):
         """
         Initialisation of the menu
@@ -148,66 +160,66 @@ class robot_cam_interface(QMainWindow):
 
         action_open_cam = QAction('Open Camera', self)
         action_open_cam.setStatusTip('Open Camera')
+        action_open_cam.setShortcut('Ctrl+o')
         action_open_cam.triggered.connect(self.openCamera)
         menu_camera.addAction(action_open_cam)
 
         action_stop_cam = QAction('Stop Camera', self)
         action_stop_cam.setStatusTip('Stop Camera')
+        action_stop_cam.setShortcut('Ctrl+s')
         action_stop_cam.triggered.connect(self.stopCamera)
         menu_camera.addAction(action_stop_cam)
 
 
         # windows
-        # central widget
-        centralwidget = QWidget(self)
-        self.setCentralWidget(centralwidget)
+        
 
         # create label
-        self.label_goal = QtWidgets.QLabel(centralwidget)
-        self.label_result_X = QtWidgets.QLabel(centralwidget)
+        self.label_goal = QtWidgets.QLabel(self.MenuWidget)
+        self.label_result_X = QtWidgets.QLabel(self.MenuWidget)
 
-        self.label_X  = QtWidgets.QLabel(centralwidget)
-        self.label_Y  = QtWidgets.QLabel(centralwidget)
-        self.label_Z  = QtWidgets.QLabel(centralwidget)
-        self.label_aX = QtWidgets.QLabel(centralwidget)
-        self.label_aY = QtWidgets.QLabel(centralwidget)
-        self.label_aZ = QtWidgets.QLabel(centralwidget)
+        self.label_X  = QtWidgets.QLabel(self.MenuWidget)
+        self.label_Y  = QtWidgets.QLabel(self.MenuWidget)
+        self.label_Z  = QtWidgets.QLabel(self.MenuWidget)
+        self.label_aX = QtWidgets.QLabel(self.MenuWidget)
+        self.label_aY = QtWidgets.QLabel(self.MenuWidget)
+        self.label_aZ = QtWidgets.QLabel(self.MenuWidget)
 
-        self.label_q0 = QtWidgets.QLabel(centralwidget)
-        self.label_q1 = QtWidgets.QLabel(centralwidget)
-        self.label_q2 = QtWidgets.QLabel(centralwidget)
-        self.label_q3 = QtWidgets.QLabel(centralwidget)
-        self.label_q4 = QtWidgets.QLabel(centralwidget)
-        self.label_q5 = QtWidgets.QLabel(centralwidget)
+        self.label_q0 = QtWidgets.QLabel(self.MenuWidget)
+        self.label_q1 = QtWidgets.QLabel(self.MenuWidget)
+        self.label_q2 = QtWidgets.QLabel(self.MenuWidget)
+        self.label_q3 = QtWidgets.QLabel(self.MenuWidget)
+        self.label_q4 = QtWidgets.QLabel(self.MenuWidget)
+        self.label_q5 = QtWidgets.QLabel(self.MenuWidget)
 
         # create textbox
-        self.textbox_input_X  = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_input_Y  = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_input_Z  = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_input_aX = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_input_aY = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_input_aZ = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_input_X  = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_input_Y  = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_input_Z  = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_input_aX = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_input_aY = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_input_aZ = QtWidgets.QLineEdit(self.MenuWidget)
 
-        self.textbox_output_X = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_output_Y = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_output_Z = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_output_aX = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_output_aY = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_output_aZ = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_output_X = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_output_Y = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_output_Z = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_output_aX = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_output_aY = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_output_aZ = QtWidgets.QLineEdit(self.MenuWidget)
 
-        self.textbox_q0 = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_q1 = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_q2 = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_q3 = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_q4 = QtWidgets.QLineEdit(centralwidget)
-        self.textbox_q5 = QtWidgets.QLineEdit(centralwidget)
+        self.textbox_q0 = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_q1 = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_q2 = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_q3 = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_q4 = QtWidgets.QLineEdit(self.MenuWidget)
+        self.textbox_q5 = QtWidgets.QLineEdit(self.MenuWidget)
 
         # create button
-        self.button_calculate = QtWidgets.QPushButton('calculate', centralwidget)
-        self.button_draw_goal = QtWidgets.QPushButton('draw goal', centralwidget)
-        self.button_draw = QtWidgets.QPushButton('draw', centralwidget)
-        self.button_clear = QtWidgets.QPushButton('clear', centralwidget)
-        self.button_move = QtWidgets.QPushButton('move', centralwidget)
+        self.button_calculate = QtWidgets.QPushButton('calculate', self.MenuWidget)
+        self.button_draw_goal = QtWidgets.QPushButton('draw goal', self.MenuWidget)
+        self.button_draw = QtWidgets.QPushButton('draw', self.MenuWidget)
+        self.button_clear = QtWidgets.QPushButton('clear', self.MenuWidget)
+        self.button_move = QtWidgets.QPushButton('move', self.MenuWidget)
 
         # resize button and textbox
         self.textbox_input_X.resize(100,20)
@@ -429,18 +441,19 @@ class robot_cam_interface(QMainWindow):
     # -----MENU ACTION-----
 
     def openCamera(self):
+        print('--- EVENT : OPEN CAMERA ACTION ---')
         # Configure depth and color streams
         self.pipeline = rs.pipeline()
         config = rs.config()
         config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-
         # Start streaming
         self.pipeline.start(config)
-
         self.timer.start(1000./24)
+        return 0
 
     def stopCamera(self):
+        print('--- EVENT : STOP CAMERA ACTION ---')
         self.timer.stop()
 
     def nextFrameSlot(self):
@@ -464,7 +477,28 @@ class robot_cam_interface(QMainWindow):
         frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
-        self.label.setPixmap(pixmap)
+        self.label_colour_img.setPixmap(pixmap)
+
+    def resizeImage(self, filename):
+        pixmap = QPixmap(filename)
+        lwidth = self.label_colour_img.maximumWidth()
+        pwidth = pixmap.width()
+        lheight = self.label_colour_img.maximumHeight()
+        pheight = pixmap.height()
+
+        wratio = pwidth * 1.0 / lwidth
+        hratio = pheight * 1.0 / lheight
+
+        if pwidth > lwidth or pheight > lheight:
+            if wratio > hratio:
+                lheight = pheight / wratio
+            else:
+                lwidth = pwidth / hratio
+
+            scaled_pixmap = pixmap.scaled(lwidth, lheight)
+            return scaled_pixmap
+        else:
+            return pixmap
 
 
     # -----GETTER AND SETTER-----
