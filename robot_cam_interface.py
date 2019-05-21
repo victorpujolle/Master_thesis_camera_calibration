@@ -97,7 +97,7 @@ class robot_cam_interface(QMainWindow):
 
         # create image label
         self.ImageLabel = QtWidgets.QLabel(self.ImageWidget)
-        self.ImageLabel.setFixedSize(640, 480)
+        self.ImageLabel.setFixedSize(640, 480/2)
 
 
         #self.ImageLayout.addWidget(self.ImageLabel)
@@ -110,8 +110,11 @@ class robot_cam_interface(QMainWindow):
         # set Geometry
         self.setGeometry(0, 0, 1500, 715)
         self.FigureWidget.setGeometry(15, 300, 400, 400)
-        self.MenuWidget.setGeometry(0, 0, 400, 280)
-        self.ImageWidget.setGeometry(415,0,640,480)
+        self.MenuWidget.setGeometry(15, 15, 400, 280)
+        self.ImageWidget.setGeometry(430,50,640,480/2)
+
+        # details
+        self.ImageWidget.setStyleSheet("border: 2px solid gray ")
 
 
         return 0
@@ -442,7 +445,6 @@ class robot_cam_interface(QMainWindow):
         print('--- EVENT : OPEN CAMERA ACTION ---')
 
         # Start streaming
-
         self.timer.start(1000./24)
 
         return 0
@@ -541,20 +543,6 @@ class robot_cam_interface(QMainWindow):
         q5 = self.textbox_q5.text()
 
         return q0, q1, q2, q3, q4, q5
-
-    def set_X_output(self, X):
-        """
-        :param X: list of string values that will by displayed in the textbox
-        """
-
-        self.textbox_output_X.setText(X[0])
-        self.textbox_output_Y.setText(X[1])
-        self.textbox_output_Z.setText(X[2])
-        self.textbox_output_aX.setText(X[3])
-        self.textbox_output_aY.setText(X[4])
-        self.textbox_output_aZ.setText(X[5])
-
-        return 0
 
     def set_q_values(self, X):
         """
