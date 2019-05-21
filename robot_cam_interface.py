@@ -96,9 +96,11 @@ class robot_cam_interface(QMainWindow):
         self.ImageLayout.setContentsMargins(0, 0, 0, 0)
 
         # create image label
-        self.ImageLabel = QLabel()
+        self.ImageLabel = QtWidgets.QLabel(self.ImageWidget)
         self.ImageLabel.setFixedSize(640, 480)
-        self.ImageLayout.addWidget(self.ImageLabel)
+
+
+        #self.ImageLayout.addWidget(self.ImageLabel)
 
         # set title
         self.title = 'Robot interface'
@@ -106,10 +108,10 @@ class robot_cam_interface(QMainWindow):
 
 
         # set Geometry
-        self.setGeometry(0, 0, 1000, 850)
-        self.FigureWidget.setGeometry(400, 0, 400, 400)
-        self.MenuWidget.setGeometry(0, 0, 400, 550)
-        self.ImageWidget.setGeometry(15,440,640,480)
+        self.setGeometry(0, 0, 1500, 715)
+        self.FigureWidget.setGeometry(15, 300, 400, 400)
+        self.MenuWidget.setGeometry(0, 0, 400, 280)
+        self.ImageWidget.setGeometry(415,0,640,480)
 
 
         return 0
@@ -158,6 +160,7 @@ class robot_cam_interface(QMainWindow):
         # Configure depth and color streams
         self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        self.pipeline.start(self.config)
 
         return 0
 
@@ -167,20 +170,29 @@ class robot_cam_interface(QMainWindow):
         """
         # menu bars
         menubar = self.menuBar()
+
+        # menu camera
         menu_camera = menubar.addMenu('Camera')   
 
 
         action_open_cam = QAction('Open Camera', self)
         action_open_cam.setStatusTip('Open Camera')
-        action_open_cam.setShortcut('Ctrl+o')
         action_open_cam.triggered.connect(self.openCamera)
         menu_camera.addAction(action_open_cam)
 
         action_stop_cam = QAction('Stop Camera', self)
         action_stop_cam.setStatusTip('Stop Camera')
-        action_stop_cam.setShortcut('Ctrl+s')
         action_stop_cam.triggered.connect(self.stopCamera)
         menu_camera.addAction(action_stop_cam)
+
+        # menu figure
+        menu_figure = menubar.addMenu('Figure')
+
+        action_clear_figure = QAction('Clear', self)
+        action_clear_figure.setStatusTip('Clear')
+        action_clear_figure.triggered.connect(self.on_click_clear)
+        menu_figure.addAction(action_clear_figure)
+
 
 
         # windows
@@ -212,13 +224,6 @@ class robot_cam_interface(QMainWindow):
         self.textbox_input_aY = QtWidgets.QLineEdit(self.MenuWidget)
         self.textbox_input_aZ = QtWidgets.QLineEdit(self.MenuWidget)
 
-        self.textbox_output_X = QtWidgets.QLineEdit(self.MenuWidget)
-        self.textbox_output_Y = QtWidgets.QLineEdit(self.MenuWidget)
-        self.textbox_output_Z = QtWidgets.QLineEdit(self.MenuWidget)
-        self.textbox_output_aX = QtWidgets.QLineEdit(self.MenuWidget)
-        self.textbox_output_aY = QtWidgets.QLineEdit(self.MenuWidget)
-        self.textbox_output_aZ = QtWidgets.QLineEdit(self.MenuWidget)
-
         self.textbox_q0 = QtWidgets.QLineEdit(self.MenuWidget)
         self.textbox_q1 = QtWidgets.QLineEdit(self.MenuWidget)
         self.textbox_q2 = QtWidgets.QLineEdit(self.MenuWidget)
@@ -230,7 +235,6 @@ class robot_cam_interface(QMainWindow):
         self.button_calculate = QtWidgets.QPushButton('calculate', self.MenuWidget)
         self.button_draw_goal = QtWidgets.QPushButton('draw goal', self.MenuWidget)
         self.button_draw = QtWidgets.QPushButton('draw', self.MenuWidget)
-        self.button_clear = QtWidgets.QPushButton('clear', self.MenuWidget)
         self.button_move = QtWidgets.QPushButton('move', self.MenuWidget)
 
         # resize button and textbox
@@ -240,13 +244,6 @@ class robot_cam_interface(QMainWindow):
         self.textbox_input_aX.resize(100,20)
         self.textbox_input_aY.resize(100,20)
         self.textbox_input_aZ.resize(100,20)
-
-        self.textbox_output_X.resize(100, 20)
-        self.textbox_output_Y.resize(100, 20)
-        self.textbox_output_Z.resize(100, 20)
-        self.textbox_output_aX.resize(100, 20)
-        self.textbox_output_aY.resize(100, 20)
-        self.textbox_output_aZ.resize(100, 20)
 
         self.textbox_q0.resize(100, 20)
         self.textbox_q1.resize(100, 20)
@@ -258,7 +255,6 @@ class robot_cam_interface(QMainWindow):
         self.button_calculate.resize(100,30)
         self.button_draw_goal.resize(100,30)
         self.button_draw.resize(100,30)
-        self.button_clear.resize(100, 30)
         self.button_move.resize(100, 30)
 
         # set text of lables)
@@ -293,38 +289,29 @@ class robot_cam_interface(QMainWindow):
         self.textbox_input_aY.move(15 + 35, 35 + 4 * 30)
         self.textbox_input_aZ.move(15 + 35, 35 + 5 * 30)
 
-        self.textbox_output_X.move( 215, 35)
-        self.textbox_output_Y.move( 215, 35 + 30)
-        self.textbox_output_Z.move( 215, 35 + 2 * 30)
-        self.textbox_output_aX.move(215, 35 + 3 * 30)
-        self.textbox_output_aY.move(215, 35 + 4 * 30)
-        self.textbox_output_aZ.move(215, 35 + 5 * 30)
+        self.label_q0.move(180, 35)
+        self.label_q1.move(180, 35 + 30)
+        self.label_q2.move(180, 35 + 2 * 30)
+        self.label_q3.move(180, 35 + 3 * 30)
+        self.label_q4.move(180, 35 + 4 * 30)
+        self.label_q5.move(180, 35 + 5 * 30)
 
-        self.label_q0.move(15, 10*30)
-        self.label_q1.move(15, 10*30 + 30)
-        self.label_q2.move(15, 10*30 + 2 * 30)
-        self.label_q3.move(15, 10*30 + 3 * 30)
-        self.label_q4.move(15, 10*30 + 4 * 30)
-        self.label_q5.move(15, 10*30 + 5 * 30)
-
-        self.textbox_q0.move(15 + 35, 5 + 10*30)
-        self.textbox_q1.move(15 + 35, 5 + 10*30 + 30)
-        self.textbox_q2.move(15 + 35, 5 + 10*30 + 2 * 30)
-        self.textbox_q3.move(15 + 35, 5 + 10*30 + 3 * 30)
-        self.textbox_q4.move(15 + 35, 5 + 10*30 + 4 * 30)
-        self.textbox_q5.move(15 + 35, 5 + 10*30 + 5 * 30)
+        self.textbox_q0.move(215, 35)
+        self.textbox_q1.move(215, 35 + 30)
+        self.textbox_q2.move(215, 35 + 2 * 30)
+        self.textbox_q3.move(215, 35 + 3 * 30)
+        self.textbox_q4.move(215, 35 + 4 * 30)
+        self.textbox_q5.move(215, 35 + 5 * 30)
 
         self.button_calculate.move(15+35, 250)
         self.button_draw_goal.move(15+35, 220)
-        self.button_draw.move(15 + 35, 490)
-        self.button_clear.move(15 + 35, 520)
+        self.button_draw.move(215, 250)
         self.button_move.move(215, 220)
 
         # link button to method
         self.button_calculate.clicked.connect(self.on_click_calculate)
         self.button_draw_goal.clicked.connect(self.on_click_draw_goal)
         self.button_draw.clicked.connect(self.on_click_draw)
-        self.button_clear.clicked.connect(self.on_click_clear)
         self.button_move.clicked.connect(self.on_click_move)
 
         return 0
@@ -377,11 +364,10 @@ class robot_cam_interface(QMainWindow):
         self.draw_reference_frame(t, R)
         self.draw_arm([x, y, z])  # draw the arm
 
-        a = rotationMatrixToEulerAngles(R)
-        a = rad2deg(np.array(a))
+        #a = rotationMatrixToEulerAngles(R)
+        #a = rad2deg(np.array(a))
 
-        fk = floatlist2charlist(np.round(np.array([t[0],t[1],t[2],a[0],a[1],a[2]]),2))
-        self.set_X_output(fk)
+        #fk = floatlist2charlist(np.round(np.array([t[0],t[1],t[2],a[0],a[1],a[2]]),2))
 
 
         self.FigureCanvas.draw()
@@ -456,7 +442,7 @@ class robot_cam_interface(QMainWindow):
         print('--- EVENT : OPEN CAMERA ACTION ---')
 
         # Start streaming
-        self.pipeline.start(self.config)
+
         self.timer.start(1000./24)
 
         return 0
