@@ -95,16 +95,22 @@ class robot_cam_interface(QMainWindow):
         self.MenuLayout.setContentsMargins(0, 0, 0, 0)
         self.ImageLayout.setContentsMargins(0, 0, 0, 0)
 
+        # create image label
+        self.ImageLabel = QLabel()
+        self.ImageLabel.setFixedSize(640, 480)
+        self.ImageLayout.addWidget(self.ImageLabel)
+
         # set title
         self.title = 'Robot interface'
         self.setWindowTitle(self.title)
 
 
         # set Geometry
-        self.setGeometry(0, 0, 1500, 600)
+        self.setGeometry(0, 0, 1000, 850)
         self.FigureWidget.setGeometry(400, 0, 400, 400)
-        self.MenuWidget.setGeometry(0, 0, 400, 600)
-        self.ImageWidget.setGeometry(1000,0,256,256)
+        self.MenuWidget.setGeometry(0, 0, 400, 550)
+        self.ImageWidget.setGeometry(15,440,640,480)
+
 
         return 0
 
@@ -146,6 +152,12 @@ class robot_cam_interface(QMainWindow):
         self.timer = QTimer()
         self.timer.timeout.connect(self.nextFrameSlot)
 
+        # Create the pipeline
+        self.pipeline = rs.pipeline()
+        self.config = rs.config()
+        # Configure depth and color streams
+        self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 
         return 0
 
@@ -442,14 +454,11 @@ class robot_cam_interface(QMainWindow):
 
     def openCamera(self):
         print('--- EVENT : OPEN CAMERA ACTION ---')
-        # Configure depth and color streams
-        self.pipeline = rs.pipeline()
-        config = rs.config()
-        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
         # Start streaming
-        self.pipeline.start(config)
+        self.pipeline.start(self.config)
         self.timer.start(1000./24)
+
         return 0
 
     def stopCamera(self):
@@ -477,13 +486,14 @@ class robot_cam_interface(QMainWindow):
         frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
-        self.label_colour_img.setPixmap(pixmap)
 
-    def resizeImage(self, filename):
-        pixmap = QPixmap(filename)
-        lwidth = self.label_colour_img.maximumWidth()
+        self.ImageLabel.setPixmap(self.resizeImage(pixmap))
+
+
+    def resizeImage(self, pixmap):
+        lwidth = self.ImageLabel.maximumWidth()
         pwidth = pixmap.width()
-        lheight = self.label_colour_img.maximumHeight()
+        lheight = self.ImageLabel.maximumHeight()
         pheight = pixmap.height()
 
         wratio = pwidth * 1.0 / lwidth
