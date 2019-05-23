@@ -21,6 +21,7 @@ class DXSerialAPI(serial.Serial):
         # __init__ of the parent class
         super(DXSerialAPI, self).__init__(PORT_NAME, BAUDRATE, timeout=TIME_OUT)
 
+
         # basic instruction set definition
         self.INSTRUCTION_SET = {'PING' : 0x01, 'READ_DATA' : 0x02, 'WRITE_DATA' : 0x03, 'REG_WRITE' : 0x04, 'ACTION' : 0x05, 'RESET' : 0x06, 'SYNC_WRITE' : 0x83}
         self.INSTRUCTION_SET_reversed = {'0x01' : 'PING', '0x02' : 'READ_DATA', '0x03' : 'WRITE_DATA', '0x04' : 'REG_WRITE', '0x05' : 'ACTION', '0x06' : 'RESET', '0x83' : 'SYNC_WRITE'}
@@ -35,6 +36,21 @@ class DXSerialAPI(serial.Serial):
         #options
         self.verbose_messages = verbose_messages # if set to True all messages sended will also be printed
 
+    def open_port(self, PORT_NAME):
+        self.port = PORT_NAME
+        try:
+            self.open()
+        except serial.SerialException:
+            print('failed to open port', PORT_NAME)
+            return -1
+        else:
+            print('port', PORT_NAME, 'has been successfully opened')
+            return 0
+        finally:
+            print('This case should not appened')
+            return 420
+
+
     # ------------- HELPERS -------------
     def _send_message(self, device_id, instruction, *args):
         """
@@ -45,34 +61,40 @@ class DXSerialAPI(serial.Serial):
         :param instruction: from the instruction set
         :param kwargs: the other instructions, following the documentation of dynamixel
         """
-        length = len(args) + 2 # length of the message
-        message = [0xFF, 0xFF, device_id, length, instruction]
-        checksum = device_id + length + instruction
+        if self.is_open:
 
-        for arg in args:
-            message.append(arg)
-            checksum += arg
+            length = len(args) + 2 # length of the message
+            message = [0xFF, 0xFF, device_id, length, instruction]
+            checksum = device_id + length + instruction
 
-        checksum = ~checksum % 256 # we take only the lower 8 bits
-        message.append(checksum)
+            for arg in args:
+                message.append(arg)
+                checksum += arg
 
-        message = bytearray(message)
+            checksum = ~checksum % 256 # we take only the lower 8 bits
+            message.append(checksum)
 
-        self.write(message)
+            message = bytearray(message)
 
-        if self.verbose_messages:
-            # message base 10
-            print('message b10 :', end=' ')
-            for x in message: print(x, end='\\')
-            # message readable
-            print('\nmessage --- :', end=' ')
-            print('0xFF\\0xFF\\id:{}\\len:{}\\{}'.format(device_id, length, self.INSTRUCTION_SET_reversed['0x{:02x}'.format(instruction)]), end='\\')
-            for x in args: print(x, end='\\')
-            print('checksum:{}'.format(checksum))
-            # message hexadecimal
-            print('message b16 :', message, '\n')
+            self.write(message)
 
-        return 0
+            if self.verbose_messages:
+                # message base 10
+                print('message b10 :', end=' ')
+                for x in message: print(x, end='\\')
+                # message readable
+                print('\nmessage --- :', end=' ')
+                print('0xFF\\0xFF\\id:{}\\len:{}\\{}'.format(device_id, length, self.INSTRUCTION_SET_reversed['0x{:02x}'.format(instruction)]), end='\\')
+                for x in args: print(x, end='\\')
+                print('checksum:{}'.format(checksum))
+                # message hexadecimal
+                print('message b16 :', message, '\n')
+
+            return 0
+
+        else:
+            warnings.warn('Aborted, port is not open')
+            return -1
 
     def _print_message(self, device_id, instruction, *args):
         """
@@ -109,20 +131,25 @@ class DXSerialAPI(serial.Serial):
         Please read the dynamixel documentation for more details
         :return:
         """
+        if self.is_open:
 
-        x = self.read_until(terminator=b'\xff\xff')                             # the begining of the message
-        id = self.read()                                                        # the id of the device
-        length = self.read()                                                    # the number of optional parameters N + 2
-        error = self.read()                                                     # error ?
-        parameters = self.read(size=int.from_bytes(length,byteorder='big') -2 ) # optional parameters
-        checksum = int.from_bytes(self.read(),byteorder='big')                  # checksum
+            x = self.read_until(terminator=b'\xff\xff')                             # the begining of the message
+            id = self.read()                                                        # the id of the device
+            length = self.read()                                                    # the number of optional parameters N + 2
+            error = self.read()                                                     # error ?
+            parameters = self.read(size=int.from_bytes(length,byteorder='big') -2 ) # optional parameters
+            checksum = int.from_bytes(self.read(),byteorder='big')                  # checksum
 
 
-        # error test
-        if id != b'' and error != b'\x00' and error != b'':
-            warnings.warn('The motor {} has responded the error number {}'.format(id,error))
+            # error test
+            if id != b'' and error != b'\x00' and error != b'':
+                warnings.warn('The motor {} has responded the error number {}'.format(id,error))
 
-        return id, length, error, parameters, checksum
+            return id, length, error, parameters, checksum
+
+        else:
+            warnings.warn('Aborted, port is not open')
+            return -1
 
     # -----------------------------------
 

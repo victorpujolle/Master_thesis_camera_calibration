@@ -4,7 +4,7 @@
 #from PySide2.QtCore import Slot, Qt, QStringListModel, QSize, QTimer
 
 from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu, QLabel
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu, QLabel, QStatusBar
 from PyQt5.QtGui import QIcon, QPixmap, QImage
 from PyQt5.QtCore import Qt, QStringListModel, QSize, QTimer
 
@@ -97,7 +97,9 @@ class robot_cam_interface(QMainWindow):
 
         # create image label
         self.ImageLabel = QtWidgets.QLabel(self.ImageWidget)
-        self.ImageLabel.setFixedSize(640, 480/2)
+        self.image_size = (640,480) # default siez output by the camera
+        self.resize_factor = 1.3
+        self.ImageLabel.setFixedSize(640 * self.resize_factor, 480 * self.resize_factor)
 
 
         #self.ImageLayout.addWidget(self.ImageLabel)
@@ -108,10 +110,10 @@ class robot_cam_interface(QMainWindow):
 
 
         # set Geometry
-        self.setGeometry(0, 0, 1500, 715)
+        self.setGeometry(0, 0, 1300, 715)
         self.FigureWidget.setGeometry(15, 300, 400, 400)
         self.MenuWidget.setGeometry(15, 15, 400, 280)
-        self.ImageWidget.setGeometry(430,50,640,480/2)
+        self.ImageWidget.setGeometry(430,50,640 * self.resize_factor, 480 * self.resize_factor)
 
         # details
         self.ImageWidget.setStyleSheet("border: 2px solid gray ")
@@ -165,6 +167,8 @@ class robot_cam_interface(QMainWindow):
         self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
         self.pipeline.start(self.config)
 
+        self.camera_mode = 'RGB'
+
         return 0
 
     def init_menu(self):
@@ -172,34 +176,60 @@ class robot_cam_interface(QMainWindow):
         Initialisation of the menu
         """
         # menu bars
-        menubar = self.menuBar()
+        self.menubar = self.menuBar()
 
         # menu camera
-        menu_camera = menubar.addMenu('Camera')   
+        self.menu_camera = self.menubar.addMenu('Camera')
 
 
-        action_open_cam = QAction('Open Camera', self)
-        action_open_cam.setStatusTip('Open Camera')
-        action_open_cam.triggered.connect(self.openCamera)
-        menu_camera.addAction(action_open_cam)
+        self.action_open_cam = QAction('Open Camera', self)
+        self.action_open_cam.setStatusTip('Open Camera')
+        self.action_open_cam.triggered.connect(self.openCamera)
+        self.menu_camera.addAction(self.action_open_cam)
 
-        action_stop_cam = QAction('Stop Camera', self)
-        action_stop_cam.setStatusTip('Stop Camera')
-        action_stop_cam.triggered.connect(self.stopCamera)
-        menu_camera.addAction(action_stop_cam)
+        self.action_stop_cam = QAction('Stop Camera', self)
+        self.action_stop_cam.setStatusTip('Stop Camera')
+        self.action_stop_cam.triggered.connect(self.stopCamera)
+        self.menu_camera.addAction(self.action_stop_cam)
+
+        # add submenu
+        self.submenu_cam_mode = QMenu('Camera mode', self)
+        self.menu_camera.addMenu(self.submenu_cam_mode)
+
+        self.action_rgb_mode = QAction('RGB', self)
+        self.action_rgb_mode.setStatusTip('RGB')
+        self.action_rgb_mode.triggered.connect(self.camera_mode_setting_rgb)
+        self.submenu_cam_mode.addAction(self.action_rgb_mode)
+
+        self.action_depth_mode = QAction('Depth', self)
+        self.action_depth_mode.setStatusTip('Depth')
+        self.action_depth_mode.triggered.connect(self.camera_mode_setting_depth)
+        self.submenu_cam_mode.addAction(self.action_depth_mode)
+
+        self.action_processed_mode = QAction('Processed', self)
+        self.action_processed_mode.setStatusTip('Processed')
+        self.action_processed_mode.triggered.connect(self.camera_mode_setting_processed)
+        self.submenu_cam_mode.addAction(self.action_processed_mode)
 
         # menu figure
-        menu_figure = menubar.addMenu('Figure')
+        self.menu_figure = self.menubar.addMenu('Figure')
 
-        action_clear_figure = QAction('Clear', self)
-        action_clear_figure.setStatusTip('Clear')
-        action_clear_figure.triggered.connect(self.on_click_clear)
-        menu_figure.addAction(action_clear_figure)
+        self.action_clear_figure = QAction('Clear', self)
+        self.action_clear_figure.setStatusTip('Clear')
+        self.action_clear_figure.triggered.connect(self.on_click_clear)
+        self.menu_figure.addAction(self.action_clear_figure)
+
+
+        # status bar
+        self.statusbar = QStatusBar()
+        self.status_camera_mode = QLabel('Status Camera')
+        self.status_camera_mode.setText('Camera : Closed')
+        self.setStatusBar(self.statusbar)
+        self.statusbar.addPermanentWidget(self.status_camera_mode)
 
 
 
         # windows
-        
 
         # create label
         self.label_goal = QtWidgets.QLabel(self.MenuWidget)
@@ -446,12 +476,40 @@ class robot_cam_interface(QMainWindow):
 
         # Start streaming
         self.timer.start(1000./24)
-
+        self.camera_open = 'Open'
+        self.update_status_bar()
         return 0
 
     def stopCamera(self):
         print('--- EVENT : STOP CAMERA ACTION ---')
         self.timer.stop()
+        self.camera_open = 'Closed'
+        self.update_status_bar()
+        return 0
+
+    def camera_mode_setting_rgb(self):
+        self.camera_mode = 'RGB'
+        self.update_status_bar()
+        return 0
+
+    def camera_mode_setting_depth(self):
+        self.camera_mode = 'Depth'
+        self.update_status_bar()
+        return 0
+
+    def camera_mode_setting_processed(self):
+        self.camera_mode = 'Processed'
+        self.update_status_bar()
+        return 0
+
+    def update_status_bar(self):
+        if self.camera_open == 'Open':
+            text = 'Camera : ' + self.camera_open + ' - ' + 'Mode : ' + self.camera_mode
+        else:
+            text = 'Camera : ' + self.camera_open
+
+        self.status_camera_mode.setText(text)
+        return 0
 
     def nextFrameSlot(self):
 
@@ -468,7 +526,13 @@ class robot_cam_interface(QMainWindow):
         depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
 
         # Stack both images horizontally
-        images = np.hstack((color_image, depth_colormap))
+        #images = np.hstack((color_image, depth_colormap))
+        if self.camera_mode == 'RGB':
+            images = np.flip(color_image, axis=0)
+        if self.camera_mode == 'Depth':
+            images = np.flip(depth_colormap, axis=0)
+        if self.camera_mode == 'Processed':
+            images = np.flip(self.process_image(color_image), axis=0)
 
         #rval, frame = self.vc.read()
         frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
@@ -476,7 +540,6 @@ class robot_cam_interface(QMainWindow):
         pixmap = QPixmap.fromImage(image)
 
         self.ImageLabel.setPixmap(self.resizeImage(pixmap))
-
 
     def resizeImage(self, pixmap):
         lwidth = self.ImageLabel.maximumWidth()
@@ -493,10 +556,40 @@ class robot_cam_interface(QMainWindow):
             else:
                 lwidth = pwidth / hratio
 
-            scaled_pixmap = pixmap.scaled(lwidth, lheight)
-            return scaled_pixmap
-        else:
-            return pixmap
+        scaled_pixmap = pixmap.scaled(lwidth, lheight)
+        return scaled_pixmap
+
+    def process_image(self, color_image, patternsize=(6,6)):
+        """
+        detect an draw the corner of a chessboard
+        :param color_image: Source chessboard view. It must be an 8-bit grayscale or color image.
+        :param depth_colormap: Number of inner corners per a chessboard row and column
+        :return: Image with the chess drawn
+        """
+        # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
+        objp = np.zeros((6 * 8, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:8, 0:6].T.reshape(-1, 2)
+
+        # Arrays to store object points and image points from all the images.
+        objpoints = []  # 3d points in real world space
+        imgpoints = []  # 2d points in image plane.
+
+        img = color_image
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Find the chessboard corners
+        ret, corners = cv2.findChessboardCorners(gray, (8, 6), None)
+        # If found, add object points, image points
+        if ret == True:
+            print('inside !')
+            objpoints.append(objp)
+            imgpoints.append(corners)
+
+            # Draw and display the corners
+            cv2.drawChessboardCorners(img, (8, 6), corners, ret)
+
+        return img
+
 
 
     # -----GETTER AND SETTER-----
