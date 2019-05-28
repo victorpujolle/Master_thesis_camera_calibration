@@ -271,7 +271,7 @@ class FK_Generator():
 
         return x,y,z
 
-    def compute_ref(self,q):
+    def compute_ref(self, q):
         """
         Compute all the local referencial to help the visualisation of the arm
         :param q: the angle of each joint

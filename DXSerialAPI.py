@@ -46,9 +46,6 @@ class DXSerialAPI(serial.Serial):
         else:
             print('port', PORT_NAME, 'has been successfully opened')
             return 0
-        finally:
-            print('This case should not appened')
-            return 420
 
 
     # ------------- HELPERS -------------

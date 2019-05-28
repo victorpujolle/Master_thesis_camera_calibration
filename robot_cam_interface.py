@@ -4,7 +4,7 @@
 #from PySide2.QtCore import Slot, Qt, QStringListModel, QSize, QTimer
 
 from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu, QLabel, QStatusBar
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QPushButton, QAction, QMenu, QLabel, QStatusBar, QMessageBox
 from PyQt5.QtGui import QIcon, QPixmap, QImage
 from PyQt5.QtCore import Qt, QStringListModel, QSize, QTimer
 
@@ -20,6 +20,7 @@ import glob
 import socket
 import math
 import time
+import csv
 
 # plotting lib
 import matplotlib.pyplot as plt
@@ -59,16 +60,11 @@ class robot_cam_interface(QMainWindow):
         # init menu
         self.init_menu()
 
-        # init video pipeline
-        self.init_pipeline()
-
-        # init robot position
-        self.arm.initialize_position()
-        self.arm.activate_all_reg()
-
         # init randomness for the sake of reproductability
         np.random.seed(19680801)
 
+        # init some states
+        self.camera_open = 'Closed'
 
 
     # ------INIT FUNCTIONS-----
@@ -165,9 +161,17 @@ class robot_cam_interface(QMainWindow):
         # Configure depth and color streams
         self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-        self.pipeline.start(self.config)
+        self.cfg = self.pipeline.start(self.config)
 
+        # set camera mode
         self.camera_mode = 'RGB'
+
+        # camera matrix intrinsics parameters
+        profile = self.cfg.get_stream(rs.stream.depth)  # Fetch stream profile for depth stream
+        self.camera_intrinsics = profile.as_video_stream_profile().get_intrinsics()  # Downcast to video_stream_profile and fetch intrinsics
+        self.camera_matrix_intrinsics = np.array([[self.camera_intrinsics.fx, 0, self.camera_intrinsics.ppx],
+                                                  [0, self.camera_intrinsics.fy, self.camera_intrinsics.ppy],
+                                                  [0, 0, 1]])
 
         return 0
 
@@ -192,6 +196,11 @@ class robot_cam_interface(QMainWindow):
         self.action_stop_cam.triggered.connect(self.stopCamera)
         self.menu_camera.addAction(self.action_stop_cam)
 
+        self.action_capture_image_cam = QAction('Capture image', self)
+        self.action_capture_image_cam.setStatusTip('Capture image')
+        self.action_capture_image_cam.triggered.connect(self.capture_image)
+        self.menu_camera.addAction(self.action_capture_image_cam)
+
         # add submenu
         self.submenu_cam_mode = QMenu('Camera mode', self)
         self.menu_camera.addMenu(self.submenu_cam_mode)
@@ -206,6 +215,11 @@ class robot_cam_interface(QMainWindow):
         self.action_depth_mode.triggered.connect(self.camera_mode_setting_depth)
         self.submenu_cam_mode.addAction(self.action_depth_mode)
 
+        self.action_chessboard_detection_mode = QAction('Chessboard detection', self)
+        self.action_chessboard_detection_mode.setStatusTip('Chessboard detection')
+        self.action_chessboard_detection_mode.triggered.connect(self.camera_mode_setting_detectchessboard)
+        self.submenu_cam_mode.addAction(self.action_chessboard_detection_mode)
+
         self.action_processed_mode = QAction('Processed', self)
         self.action_processed_mode.setStatusTip('Processed')
         self.action_processed_mode.triggered.connect(self.camera_mode_setting_processed)
@@ -218,6 +232,15 @@ class robot_cam_interface(QMainWindow):
         self.action_clear_figure.setStatusTip('Clear')
         self.action_clear_figure.triggered.connect(self.on_click_clear)
         self.menu_figure.addAction(self.action_clear_figure)
+
+
+        # menu robot
+        self.menu_robot = self.menubar.addMenu('Robot')
+
+        self.action_init_pos = QAction('Initialize Position', self)
+        self.action_init_pos.setStatusTip('Initialize Position')
+        self.action_init_pos.triggered.connect(self.on_click_init_pos)
+        self.menu_robot.addAction(self.action_init_pos)
 
 
         # status bar
@@ -349,7 +372,10 @@ class robot_cam_interface(QMainWindow):
 
         return 0
 
+
+
     # -----BUTTON FUNCTIONS-----
+
 
     def on_click_calculate(self):
         """
@@ -471,20 +497,27 @@ class robot_cam_interface(QMainWindow):
 
     # -----MENU ACTION-----
 
+
     def openCamera(self):
         print('--- EVENT : OPEN CAMERA ACTION ---')
+        if self.camera_open == 'Closed':
+            self.init_pipeline()
 
-        # Start streaming
-        self.timer.start(1000./24)
-        self.camera_open = 'Open'
-        self.update_status_bar()
+            # Start streaming
+            self.timer.start(1000./24)
+            self.camera_open = 'Open'
+            self.update_status_bar()
         return 0
 
     def stopCamera(self):
         print('--- EVENT : STOP CAMERA ACTION ---')
-        self.timer.stop()
-        self.camera_open = 'Closed'
-        self.update_status_bar()
+        if self.camera_open == 'Open':
+            self.pipeline.stop()
+
+
+            self.timer.stop()
+            self.camera_open = 'Closed'
+            self.update_status_bar()
         return 0
 
     def camera_mode_setting_rgb(self):
@@ -494,6 +527,11 @@ class robot_cam_interface(QMainWindow):
 
     def camera_mode_setting_depth(self):
         self.camera_mode = 'Depth'
+        self.update_status_bar()
+        return 0
+
+    def camera_mode_setting_detectchessboard(self):
+        self.camera_mode = 'Chessboard detection'
         self.update_status_bar()
         return 0
 
@@ -531,8 +569,10 @@ class robot_cam_interface(QMainWindow):
             images = np.flip(color_image, axis=0)
         if self.camera_mode == 'Depth':
             images = np.flip(depth_colormap, axis=0)
+        if self.camera_mode == 'Chessboard detection':
+            images = np.flip(self.detect_chessboard(color_image), axis=0)
         if self.camera_mode == 'Processed':
-            images = np.flip(self.process_image(color_image), axis=0)
+            images = np.flip(color_image, axis=0)
 
         #rval, frame = self.vc.read()
         frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
@@ -559,40 +599,73 @@ class robot_cam_interface(QMainWindow):
         scaled_pixmap = pixmap.scaled(lwidth, lheight)
         return scaled_pixmap
 
-    def process_image(self, color_image, patternsize=(6,6)):
+    def detect_chessboard(self, color_image):
         """
         detect an draw the corner of a chessboard
         :param color_image: Source chessboard view. It must be an 8-bit grayscale or color image.
         :param depth_colormap: Number of inner corners per a chessboard row and column
         :return: Image with the chess drawn
         """
-        # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-        objp = np.zeros((6 * 8, 3), np.float32)
-        objp[:, :2] = np.mgrid[0:8, 0:6].T.reshape(-1, 2)
-
-        # Arrays to store object points and image points from all the images.
-        objpoints = []  # 3d points in real world space
-        imgpoints = []  # 2d points in image plane.
 
         img = color_image
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         # Find the chessboard corners
-        ret, corners = cv2.findChessboardCorners(gray, (8, 6), None)
+        ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
         # If found, add object points, image points
         if ret == True:
-            print('inside !')
-            objpoints.append(objp)
-            imgpoints.append(corners)
-
             # Draw and display the corners
-            cv2.drawChessboardCorners(img, (8, 6), corners, ret)
+            cv2.drawChessboardCorners(img, (9, 6), corners, ret)
 
         return img
+
+    def capture_image(self):
+
+        if self.camera_open == 'Closed':
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText('The camera is closed, cannot complete the action')
+            msg.setWindowTitle('Error')
+            msg.exec()
+
+
+        else:
+
+            with open('../images/image_info.txt') as csv_file:
+
+                csv_reader = csv.reader(csv_file, delimiter=',')
+                csv_tab = []
+                for row in csv_reader:
+                    csv_tab.append(row)
+
+                index = csv_tab[0]
+                csv_tab.pop(0)
+                for i in range(len(csv_tab)):
+                    csv_tab[i][0] = int(csv_tab[i][0])
+
+                last_number = csv_tab[-1][0]
+                name_new_image = '../images/image_calibration_' + str(last_number) + '.png'
+                print(name_new_image)
+
+                # get the image
+                frames = self.pipeline.wait_for_frames()
+                color_frame = frames.get_color_frame()
+
+                # Convert images to numpy arrays
+                color_image = np.asanyarray(color_frame.get_data())
+                images = np.flip(color_image, axis=0)
+
+                # rval, frame = self.vc.read()
+                frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
+                image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
+
+
+
 
 
 
     # -----GETTER AND SETTER-----
+
 
     def get_X_input(self):
         """
@@ -651,7 +724,9 @@ class robot_cam_interface(QMainWindow):
 
         return 0
 
+
     # -----DRAWING FUNCTIONS-----
+
 
     def clear_figure(self):
         """
@@ -765,3 +840,29 @@ class robot_cam_interface(QMainWindow):
 
         return 0
 
+
+    # -----ADVANCED CAMERA FUNCTIONS-----
+
+
+    def single_image_calibration(self):
+        length_chessboard = 2.38 /100 # one case length is 2.38cm
+        objectPoints = np.zeros((9*6,3))
+        for i in range(6):
+            for j in range(9):
+                objectPoints[9*i + j,0] = i+1
+                objectPoints[9*i + j,1] = j+1
+
+        objectPoints *= length_chessboard
+        imgSize = (640,480)
+
+
+
+
+    # -----ROBOT CONTROL FUNCTIONS-----
+
+
+    def on_click_init_pos(self):
+        # init robot position (just write init pos in the txt box)
+        q = self.arm.ANGLES_INIT
+        self.set_q_values(floatlist2charlist(q))
+        return 0
