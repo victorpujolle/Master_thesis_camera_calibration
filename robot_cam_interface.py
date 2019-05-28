@@ -570,7 +570,7 @@ class robot_cam_interface(QMainWindow):
         if self.camera_mode == 'Depth':
             images = np.flip(depth_colormap, axis=0)
         if self.camera_mode == 'Chessboard detection':
-            images = np.flip(self.detect_chessboard(color_image), axis=0)
+            images = np.flip(self.draw_chessboard(color_image), axis=0)
         if self.camera_mode == 'Processed':
             images = np.flip(color_image, axis=0)
 
@@ -599,7 +599,7 @@ class robot_cam_interface(QMainWindow):
         scaled_pixmap = pixmap.scaled(lwidth, lheight)
         return scaled_pixmap
 
-    def detect_chessboard(self, color_image):
+    def draw_chessboard(self, color_image):
         """
         detect an draw the corner of a chessboard
         :param color_image: Source chessboard view. It must be an 8-bit grayscale or color image.
@@ -619,45 +619,72 @@ class robot_cam_interface(QMainWindow):
 
         return img
 
+    def detect_chessboard(self, color_image):
+        """
+        detect the corner of a chessboard
+        :param color_image: Source chessboard view. It must be an 8-bit grayscale or color image.
+        :param depth_colormap: Number of inner corners per a chessboard row and column
+        :return: The image with the chess drawn and the coordinates of each corners in the camera coordinates system
+        """
+
+        img = color_image
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Find the chessboard corners
+        ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
+        # If found, add object points, image points
+        if ret == True:
+            # Draw and display the corners
+            cv2.drawChessboardCorners(img, (9, 6), corners, ret)
+            return (img,corners)
+
+        return -1
+
     def capture_image(self):
 
         if self.camera_open == 'Closed':
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Critical)
-            msg.setText('The camera is closed, cannot complete the action')
+            msg.setText('The camera is closed.\nCannot capture the image.')
             msg.setWindowTitle('Error')
             msg.exec()
+            return -1
 
 
-        else:
+        with open('../images/image_info.txt', mode='r') as csv_file:
 
-            with open('../images/image_info.txt') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            csv_tab = []
+            for row in csv_reader:
+                csv_tab.append(row)
 
-                csv_reader = csv.reader(csv_file, delimiter=',')
-                csv_tab = []
-                for row in csv_reader:
-                    csv_tab.append(row)
+            index = csv_tab[0]
+            csv_tab.pop(0)
 
-                index = csv_tab[0]
-                csv_tab.pop(0)
-                for i in range(len(csv_tab)):
-                    csv_tab[i][0] = int(csv_tab[i][0])
+            for i in range(len(csv_tab)):
+                csv_tab[i][0] = int(csv_tab[i][0])
 
-                last_number = csv_tab[-1][0]
-                name_new_image = '../images/image_calibration_' + str(last_number) + '.png'
-                print(name_new_image)
+            last_number = csv_tab[-1][0]
+            name_new_image = '../images/image_calibration_' + str(last_number+1) + '.png'
 
-                # get the image
-                frames = self.pipeline.wait_for_frames()
-                color_frame = frames.get_color_frame()
+            # get the image
+            frames = self.pipeline.wait_for_frames()
+            color_frame = frames.get_color_frame()
 
-                # Convert images to numpy arrays
-                color_image = np.asanyarray(color_frame.get_data())
-                images = np.flip(color_image, axis=0)
+            # Convert images to numpy arrays
+            color_image = np.asanyarray(color_frame.get_data())
+            image = np.flip(color_image, axis=0)
 
-                # rval, frame = self.vc.read()
-                frame = cv2.cvtColor(images, cv2.COLOR_BGR2RGB)
-                image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
+            # save the image
+            cv2.imwrite(name_new_image, image)
+
+        with open('../images/image_info.txt', mode='w') as csv_file:
+            #write txt file
+
+            csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            csv_writer.writerow([str(last_number+1)])
+
+            return 0
 
 
 
