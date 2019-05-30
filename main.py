@@ -36,8 +36,6 @@ if __name__ == '__main__':
     QApp = QtWidgets.QApplication(sys.argv)
     app = robot_cam_interface(ArmAPI)
     app.show()
-    app.openCamera()
-    app.capture_image()
     sys.exit(QApp.exec_())
 
 

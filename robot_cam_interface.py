@@ -641,7 +641,7 @@ class robot_cam_interface(QMainWindow):
         return -1
 
     def capture_image(self):
-
+        print('--- EVENT : CAPTURE IMAGE ---')
         if self.camera_open == 'Closed':
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Critical)
@@ -653,18 +653,24 @@ class robot_cam_interface(QMainWindow):
 
         with open('../images/image_info.txt', mode='r') as csv_file:
 
-            csv_reader = csv.reader(csv_file, delimiter=',')
+            csv_reader = csv.reader(csv_file, delimiter=' ')
             csv_tab = []
             for row in csv_reader:
-                csv_tab.append(row)
+                if row != []:
+                    csv_tab.append(row)
 
             index = csv_tab[0]
             csv_tab.pop(0)
+            last_number = 0
 
             for i in range(len(csv_tab)):
-                csv_tab[i][0] = int(csv_tab[i][0])
+                if csv_tab[i] != []:
+                    csv_tab[i][0] = int(csv_tab[i][0])
+                    last_number += 1
+                else:
+                    break
 
-            last_number = csv_tab[-1][0]
+
             name_new_image = '../images/image_calibration_' + str(last_number+1) + '.png'
 
             # get the image
@@ -678,11 +684,14 @@ class robot_cam_interface(QMainWindow):
             # save the image
             cv2.imwrite(name_new_image, image)
 
-        with open('../images/image_info.txt', mode='w') as csv_file:
+        with open('../images/image_info.txt', mode='a') as file:
             #write txt file
-
-            csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow([str(last_number+1)])
+            self.arm.read_arm_postion()
+            q = self.arm.joint_angles
+            self.set_q_values(floatlist2charlist(np.round(q,2)))
+            R,t = self.arm.FK.compute_FK(deg2rad(q)) # FK computation
+            [ax,ay,az] = rotationMatrixToEulerAngles(R)# euler angles computation
+            file.write(str(last_number+1) + ' ' + name_new_image + ' ' + str(t[0]) + ' ' + str(t[1]) + ' ' + str(t[2]) + ' ' + str(ax) + ' ' + str(ay) + ' ' + str(az) + '\n\r')
 
             return 0
 
